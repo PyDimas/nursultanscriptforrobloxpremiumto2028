@@ -15,17 +15,16 @@ local Theme = {
     TextDim = Color3.fromRGB(160, 160, 160)
 }
 
-local State = { Flying = false, HighJump = false, ESP = false, ShowTimer = false }
+local State = { Flying = false, HighJump = false, ESP = false, ShowTimer = false, God = false }
 local Conf = { FlySpeed = 23, JumpPower = 50, Binds = {} }
-local Cache = { Timers = {}, NextScan = 0 }
 
--- === УВЕДОМЛЕНИЯ ===
+-- === UI NOTIFICATION ===
 local function ShowNotif(text, color)
     local sg = CoreGui:FindFirstChild("Claudi_UI") or Instance.new("ScreenGui", CoreGui)
     sg.Name = "Claudi_UI"
     local notif = Instance.new("Frame", sg); notif.Size = UDim2.new(0, 200, 0, 40); notif.Position = UDim2.new(0.5, -100, 0, -60)
     notif.BackgroundColor3 = Theme.Bg; Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
-    Instance.new("UIStroke", notif).Color = color; Instance.new("UIStroke", notif).Thickness = 2
+    Instance.new("UIStroke", notif).Color = color
     local lbl = Instance.new("TextLabel", notif); lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = Theme.Text; lbl.Text = text; lbl.Font = "GothamBold"; lbl.TextSize = 12
     TweenService:Create(notif, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -100, 0, 70)}):Play()
     task.delay(1.2, function()
@@ -34,12 +33,12 @@ local function ShowNotif(text, color)
     end)
 end
 
--- === МЕНЮ ===
+-- === MAIN MENU ===
 if CoreGui:FindFirstChild("Claudi_Main") then CoreGui.Claudi_Main:Destroy() end
 local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "Claudi_Main"
-local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 240, 0, 300); Main.Position = UDim2.new(0.5, -120, 0.4, -150)
+local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 240, 0, 380); Main.Position = UDim2.new(0.5, -120, 0.4, -190)
 Main.BackgroundColor3 = Theme.Bg; Main.Visible = false; Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", Main).Color = Theme.Accent; Instance.new("UIStroke", Main).Thickness = 2
+Instance.new("UIStroke", Main).Color = Theme.Accent
 
 local Scroll = Instance.new("ScrollingFrame", Main); Scroll.Size = UDim2.new(1, -20, 1, -60); Scroll.Position = UDim2.new(0, 10, 0, 50)
 Scroll.BackgroundTransparency = 1; Scroll.ScrollBarThickness = 0
@@ -47,7 +46,7 @@ Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 8)
 
 local function CreateBtn(text, stateKey)
     local btn = Instance.new("TextButton", Scroll); btn.Size = UDim2.new(1, 0, 0, 38); btn.BackgroundColor3 = Theme.ElementBg
-    btn.Text = text; btn.TextColor3 = Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; Instance.new("UICorner", btn)
+    btn.Text = "  " .. text; btn.TextColor3 = Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; btn.TextXAlignment = "Left"; Instance.new("UICorner", btn)
     local bindLbl = Instance.new("TextLabel", btn); bindLbl.Size = UDim2.new(0, 60, 1, 0); bindLbl.Position = UDim2.new(1, -65, 0, 0); bindLbl.BackgroundTransparency = 1; bindLbl.Text = "[---]"; bindLbl.TextColor3 = Theme.Accent; bindLbl.Font = "GothamBold"; bindLbl.TextSize = 10
 
     btn.MouseButton1Click:Connect(function()
@@ -60,7 +59,7 @@ local function CreateBtn(text, stateKey)
         bindLbl.Text = "..."; local c; c = UserInputService.InputBegan:Connect(function(i)
             local key = (i.UserInputType == Enum.UserInputType.MouseButton3 and "MB3") or (i.UserInputType == Enum.UserInputType.Keyboard and tostring(i.KeyCode):gsub("Enum.KeyCode.", ""))
             if key then
-                Conf.Binds[stateKey] = (i.UserInputType == Enum.UserInputType.MouseButton3 and Enum.UserInputType.MouseButton3 or i.KeyCode)
+                Conf.Binds[stateKey] = i.UserInputType == Enum.UserInputType.MouseButton3 and Enum.UserInputType.MouseButton3 or i.KeyCode
                 bindLbl.Text = "[" .. key .. "]"; c:Disconnect()
             end
         end)
@@ -71,55 +70,76 @@ local function CreateSlider(text, min, max, def, cb)
     local f = Instance.new("Frame", Scroll); f.Size = UDim2.new(1,0,0,45); f.BackgroundTransparency = 1
     local l = Instance.new("TextLabel", f); l.Size = UDim2.new(1,0,0,15); l.Text = text .. ": " .. def; l.TextColor3 = Theme.Text; l.Font = "GothamBold"; l.TextSize = 11; l.BackgroundTransparency = 1
     local b = Instance.new("Frame", f); b.Size = UDim2.new(1,0,0,4); b.Position = UDim2.new(0,0,0.7,0); b.BackgroundColor3 = Color3.new(0.2,0.2,0.2)
-    local fill = Instance.new("Frame", b); fill.Size = UDim2.new((def-min)/(max-min),0,1,0); fill.BackgroundColor3 = Theme.Accent; Instance.new("UICorner", fill)
+    local fill = Instance.new("Frame", b); fill.Size = UDim2.new((def-min)/(max-min),0,1,0); fill.BackgroundColor3 = Theme.Accent
     b.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then
             local c; c = RunService.RenderStepped:Connect(function()
                 local p = math.clamp((UserInputService:GetMouseLocation().X - b.AbsolutePosition.X) / b.AbsoluteSize.X, 0, 1)
                 fill.Size = UDim2.new(p, 0, 1, 0); local v = math.floor(min + (max-min) * p); l.Text = text .. ": " .. v; cb(v)
             end)
-            UserInputService.InputEnded:Connect(function(i2) if i2.UserInputType == Enum.UserInputType.MouseButton1 then c:Disconnect() end end)
+            local r; r = UserInputService.InputEnded:Connect(function(i2) if i2.UserInputType == Enum.UserInputType.MouseButton1 then c:Disconnect(); r:Disconnect() end end)
         end
     end)
 end
 
 CreateBtn("Fly Mode", "Flying")
-CreateSlider("Fly Speed", 5, 100, 23, function(v) Conf.FlySpeed = v end)
+CreateSlider("Fly Speed", 5, 120, 23, function(v) Conf.FlySpeed = v end)
 CreateBtn("High Jump", "HighJump")
+CreateSlider("Jump Power", 30, 250, 50, function(v) Conf.JumpPower = v end)
+CreateBtn("God Mode", "God")
 CreateBtn("ESP Players", "ESP")
-CreateBtn("Base ESP", "ShowTimer")
 
--- === ЛОГИКА ПОЛЕТА И ДВИЖЕНИЯ ===
-RunService.Heartbeat:Connect(function(dt)
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+-- === LOGIC ===
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
 
+    -- God Mode
+    if State.God and hum.Health > 0 and hum.Health < 100 then
+        hum.Health = 100
+    end
+
+    -- Improved Fly (No Rubberbanding)
     if State.Flying then
-        root.Velocity = Vector3.new(0, 0, 0) -- Замораживаем физику, чтобы не тепало
-        local move = Vector3.new(0, 0, 0)
+        hum.PlatformStand = true
+        local move = Vector3.zero
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= Camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= Camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
-        
-        if move.Magnitude > 0 then
-            root.CFrame = root.CFrame + (move.Unit * Conf.FlySpeed * dt)
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move -= Vector3.new(0, 1, 0) end
+
+        root.AssemblyLinearVelocity = move.Magnitude > 0 and (move.Unit * Conf.FlySpeed) or Vector3.new(0, 0.1, 0)
+    else
+        if hum.PlatformStand then hum.PlatformStand = false end
+    end
+    
+    -- ESP Logic
+    if State.ESP then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local r = p.Character.HumanoidRootPart
+                if not r:FindFirstChild("Box_ESP") then
+                    local b = Instance.new("BoxHandleAdornment", r)
+                    b.Name = "Box_ESP"; b.AlwaysOnTop = true; b.ZIndex = 5; b.Transparency = 0.5
+                    b.Color3 = Theme.Accent; b.Size = Vector3.new(4, 5, 1); b.Adornee = r
+                end
+            end
         end
     end
 end)
 
--- Прыжок
 UserInputService.JumpRequest:Connect(function()
     if State.HighJump and not State.Flying then
         local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root then root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) end
+        if root then 
+            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) 
+        end
     end
 end)
 
--- Управление и Бинды
 UserInputService.InputBegan:Connect(function(i, g)
     if not g and i.KeyCode == Enum.KeyCode.RightShift then Main.Visible = not Main.Visible end
     if g then return end
@@ -127,6 +147,9 @@ UserInputService.InputBegan:Connect(function(i, g)
         if i.KeyCode == b or i.UserInputType == b then
             State[s] = not State[s]
             ShowNotif(s .. (State[s] and " ON" or " OFF"), State[s] and Color3.new(0,1,0) or Color3.new(1,0,0))
+            for _, v in pairs(Scroll:GetChildren()) do
+                if v:IsA("TextButton") and v.Text:find(s) then v.TextColor3 = State[s] and Theme.Accent or Theme.TextDim end
+            end
         end
     end
 end)
