@@ -15,8 +15,13 @@ local Theme = {
     TextDim = Color3.fromRGB(160, 160, 160)
 }
 
-local State = { Flying = false, HighJump = false, ESP = false, God = true }
+-- Добавил ключи для ESP в State
+local State = { Flying = false, HighJump = false, ESP = false, God = true, BaseESP = false }
 local Conf = { FlySpeed = 22, JumpPower = 50, Binds = {} }
+
+-- Таблицы для хранения объектов ESP
+local p_esp = {}
+local b_esp = {}
 
 -- === UI NOTIFICATION ===
 local function ShowNotif(text, color)
@@ -46,7 +51,7 @@ Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 8)
 
 local function CreateBtn(text, stateKey)
     local btn = Instance.new("TextButton", Scroll); btn.Size = UDim2.new(1, 0, 0, 38); btn.BackgroundColor3 = Theme.ElementBg
-    btn.Text = text; btn.TextColor3 = Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; Instance.new("UICorner", btn)
+    btn.Text = text; btn.TextColor3 = State[stateKey] and Theme.Accent or Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; Instance.new("UICorner", btn)
     local bindLbl = Instance.new("TextLabel", btn); bindLbl.Size = UDim2.new(0, 60, 1, 0); bindLbl.Position = UDim2.new(1, -65, 0, 0); bindLbl.BackgroundTransparency = 1; bindLbl.Text = "[---]"; bindLbl.TextColor3 = Theme.Accent; bindLbl.Font = "GothamBold"; bindLbl.TextSize = 10
 
     btn.MouseButton1Click:Connect(function()
@@ -87,8 +92,9 @@ CreateSlider("Fly Speed", 5, 100, 22, function(v) Conf.FlySpeed = v end)
 CreateBtn("High Jump", "HighJump")
 CreateBtn("God Mode", "God")
 CreateBtn("ESP Players", "ESP")
+CreateBtn("Base ESP", "BaseESP") -- Новая кнопка
 
--- === ЯДРО С ОБНОВЛЕННЫМ УПРАВЛЕНИЕМ ===
+-- === ЯДРО ===
 
 RunService.Stepped:Connect(function()
     if State.Flying and LocalPlayer.Character then
@@ -117,13 +123,10 @@ RunService.Heartbeat:Connect(function(dt)
         local look = Camera.CFrame.LookVector
         local right = Camera.CFrame.RightVector
 
-        -- Управление WASD
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Vector3.new(look.X, 0, look.Z) end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Vector3.new(look.X, 0, look.Z) end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= right end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += right end
-        
-        -- Управление Высотой (Space / LeftShift)
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
 
@@ -137,16 +140,64 @@ RunService.Heartbeat:Connect(function(dt)
     else
         if hum.PlatformStand then hum.PlatformStand = false end
     end
+
+    -- Плеер ESP Логика
+    if State.ESP then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                if not p_esp[p] then
+                    local b = Instance.new("BillboardGui", CoreGui); b.AlwaysOnTop = true; b.Size = UDim2.new(0, 100, 0, 20)
+                    local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; t.TextColor3 = Theme.Accent; t.Font = "GothamBold"; t.TextSize = 10; t.TextStrokeTransparency = 0.5
+                    p_esp[p] = {Gui = b, Lab = t}
+                end
+                p_esp[p].Gui.Adornee = p.Character.HumanoidRootPart
+                local dist = math.floor((root.Position - p.Character.HumanoidRootPart.Position).Magnitude)
+                p_esp[p].Lab.Text = p.Name .. " [" .. dist .. "m]"
+            end
+        end
+    else
+        for i, v in pairs(p_esp) do v.Gui:Destroy() end
+        table.clear(p_esp)
+    end
+
+    -- База ESP Логика
+    if State.BaseESP then
+        -- Ищем папки с базами (названия часто Tycoons или Bases)
+        local folder = workspace:FindFirstChild("Tycoons") or workspace:FindFirstChild("Bases")
+        if folder then
+            for _, base in pairs(folder:GetChildren()) do
+                local part = base:FindFirstChild("HumanoidRootPart") or base:FindFirstChild("Base") or base.PrimaryPart
+                if part then
+                    if not b_esp[base] then
+                        local b = Instance.new("BillboardGui", CoreGui); b.AlwaysOnTop = true; b.Size = UDim2.new(0, 100, 0, 20)
+                        local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; t.TextColor3 = Color3.new(1,1,1); t.Font = "GothamBold"; t.TextSize = 10
+                        b_esp[base] = {Gui = b, Lab = t}
+                    end
+                    b_esp[base].Gui.Adornee = part
+                    local dist = math.floor((root.Position - part.Position).Magnitude)
+                    b_esp[base].Lab.Text = "Base [" .. dist .. "m]"
+                end
+            end
+        end
+    else
+        for i, v in pairs(b_esp) do v.Gui:Destroy() end
+        table.clear(b_esp)
+    end
 end)
 
--- Чтобы не прыгать при полете
+-- ПРЫЖОК (FIXED)
 UserInputService.JumpRequest:Connect(function()
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
     if State.Flying then
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false) end
-    elseif State.HighJump then
-        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root then root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) end
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+    else
+        hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) -- Включаем обратно
+        if State.HighJump then
+            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) end
+        end
     end
 end)
 
