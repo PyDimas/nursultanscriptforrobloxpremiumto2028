@@ -15,8 +15,8 @@ local Theme = {
     TextDim = Color3.fromRGB(160, 160, 160)
 }
 
-local State = { Flying = false, HighJump = false, ESP = false, ShowTimer = false, God = false }
-local Conf = { FlySpeed = 23, JumpPower = 50, Binds = {} }
+local State = { Flying = false, HighJump = false, ESP = false, God = true }
+local Conf = { FlySpeed = 22, JumpPower = 50, Binds = {} }
 
 -- === UI NOTIFICATION ===
 local function ShowNotif(text, color)
@@ -36,7 +36,7 @@ end
 -- === MAIN MENU ===
 if CoreGui:FindFirstChild("Claudi_Main") then CoreGui.Claudi_Main:Destroy() end
 local ScreenGui = Instance.new("ScreenGui", CoreGui); ScreenGui.Name = "Claudi_Main"
-local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 240, 0, 380); Main.Position = UDim2.new(0.5, -120, 0.4, -190)
+local Main = Instance.new("Frame", ScreenGui); Main.Size = UDim2.new(0, 240, 0, 340); Main.Position = UDim2.new(0.5, -120, 0.4, -170)
 Main.BackgroundColor3 = Theme.Bg; Main.Visible = false; Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
 Instance.new("UIStroke", Main).Color = Theme.Accent
 
@@ -46,7 +46,7 @@ Instance.new("UIListLayout", Scroll).Padding = UDim.new(0, 8)
 
 local function CreateBtn(text, stateKey)
     local btn = Instance.new("TextButton", Scroll); btn.Size = UDim2.new(1, 0, 0, 38); btn.BackgroundColor3 = Theme.ElementBg
-    btn.Text = "  " .. text; btn.TextColor3 = Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; btn.TextXAlignment = "Left"; Instance.new("UICorner", btn)
+    btn.Text = text; btn.TextColor3 = Theme.TextDim; btn.Font = "GothamBold"; btn.TextSize = 13; Instance.new("UICorner", btn)
     local bindLbl = Instance.new("TextLabel", btn); bindLbl.Size = UDim2.new(0, 60, 1, 0); bindLbl.Position = UDim2.new(1, -65, 0, 0); bindLbl.BackgroundTransparency = 1; bindLbl.Text = "[---]"; bindLbl.TextColor3 = Theme.Accent; bindLbl.Font = "GothamBold"; bindLbl.TextSize = 10
 
     btn.MouseButton1Click:Connect(function()
@@ -77,66 +77,76 @@ local function CreateSlider(text, min, max, def, cb)
                 local p = math.clamp((UserInputService:GetMouseLocation().X - b.AbsolutePosition.X) / b.AbsoluteSize.X, 0, 1)
                 fill.Size = UDim2.new(p, 0, 1, 0); local v = math.floor(min + (max-min) * p); l.Text = text .. ": " .. v; cb(v)
             end)
-            local r; r = UserInputService.InputEnded:Connect(function(i2) if i2.UserInputType == Enum.UserInputType.MouseButton1 then c:Disconnect(); r:Disconnect() end end)
+            local endCon; endCon = UserInputService.InputEnded:Connect(function(i2) if i2.UserInputType == Enum.UserInputType.MouseButton1 then c:Disconnect(); endCon:Disconnect() end end)
         end
     end)
 end
 
-CreateBtn("Fly Mode", "Flying")
-CreateSlider("Fly Speed", 5, 120, 23, function(v) Conf.FlySpeed = v end)
+CreateBtn("STEALTH FLY", "Flying")
+CreateSlider("Fly Speed", 5, 100, 22, function(v) Conf.FlySpeed = v end)
 CreateBtn("High Jump", "HighJump")
-CreateSlider("Jump Power", 30, 250, 50, function(v) Conf.JumpPower = v end)
 CreateBtn("God Mode", "God")
 CreateBtn("ESP Players", "ESP")
 
--- === LOGIC ===
-RunService.Heartbeat:Connect(function()
-    local char = LocalPlayer.Character; local root = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return end
+-- === ЯДРО С ОБНОВЛЕННЫМ УПРАВЛЕНИЕМ ===
 
-    -- God Mode
-    if State.God and hum.Health > 0 and hum.Health < 100 then
-        hum.Health = 100
-    end
-
-    -- Improved Fly (No Rubberbanding)
-    if State.Flying then
-        hum.PlatformStand = true
-        local move = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= Camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= Camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move -= Vector3.new(0, 1, 0) end
-
-        root.AssemblyLinearVelocity = move.Magnitude > 0 and (move.Unit * Conf.FlySpeed) or Vector3.new(0, 0.1, 0)
-    else
-        if hum.PlatformStand then hum.PlatformStand = false end
-    end
-    
-    -- ESP Logic
-    if State.ESP then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local r = p.Character.HumanoidRootPart
-                if not r:FindFirstChild("Box_ESP") then
-                    local b = Instance.new("BoxHandleAdornment", r)
-                    b.Name = "Box_ESP"; b.AlwaysOnTop = true; b.ZIndex = 5; b.Transparency = 0.5
-                    b.Color3 = Theme.Accent; b.Size = Vector3.new(4, 5, 1); b.Adornee = r
-                end
-            end
+RunService.Stepped:Connect(function()
+    if State.Flying and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
         end
     end
 end)
 
-UserInputService.JumpRequest:Connect(function()
-    if State.HighJump and not State.Flying then
-        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if root then 
-            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) 
+RunService.Heartbeat:Connect(function(dt)
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+
+    if State.God then
+        hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        if hum.Health < 20 then hum.Health = 100 end
+    end
+
+    if State.Flying then
+        hum.PlatformStand = true
+        hum:ChangeState(Enum.HumanoidStateType.Running)
+
+        local moveDir = Vector3.zero
+        local look = Camera.CFrame.LookVector
+        local right = Camera.CFrame.RightVector
+
+        -- Управление WASD
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += Vector3.new(look.X, 0, look.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= Vector3.new(look.X, 0, look.Z) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += right end
+        
+        -- Управление Высотой (Space / LeftShift)
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            root.CFrame = root.CFrame + (moveDir.Unit * Conf.FlySpeed * dt)
         end
+        
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(look.X, 0, look.Z))
+    else
+        if hum.PlatformStand then hum.PlatformStand = false end
+    end
+end)
+
+-- Чтобы не прыгать при полете
+UserInputService.JumpRequest:Connect(function()
+    if State.Flying then
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false) end
+    elseif State.HighJump then
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, Conf.JumpPower, root.AssemblyLinearVelocity.Z) end
     end
 end)
 
@@ -147,9 +157,6 @@ UserInputService.InputBegan:Connect(function(i, g)
         if i.KeyCode == b or i.UserInputType == b then
             State[s] = not State[s]
             ShowNotif(s .. (State[s] and " ON" or " OFF"), State[s] and Color3.new(0,1,0) or Color3.new(1,0,0))
-            for _, v in pairs(Scroll:GetChildren()) do
-                if v:IsA("TextButton") and v.Text:find(s) then v.TextColor3 = State[s] and Theme.Accent or Theme.TextDim end
-            end
         end
     end
 end)
